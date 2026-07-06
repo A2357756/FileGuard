@@ -3,6 +3,7 @@ import time
 import argparse
 from scanner import scan_files
 from database import init_db, log_event, get_baseline, update_file
+from plyer import notification
 
 class Colors:
     RED = "\033[91m"
@@ -33,20 +34,31 @@ def compare(old, new):
     for path in all_paths:
         #檔案是新增的
         if path not in old:
-            print(f"{Colors.GREEN}[CREATED] {path}{Colors.RESET}")
+            print(f"[CREATED] {path}")
             log_event(path, "CREATED")
+            send_alert(path, "新增")
             events_found = True
         #檔案是被刪除
         elif path not in new:
-            print(f"{Colors.RED}[DELETED] {path}{Colors.RESET}")
+            print(f"[DELETED] {path}")
             log_event(path, "DELETED")
+            send_alert(path, "刪除")
             events_found = True
         #檔案是被修改(hash值不同)
         elif old[path] != new[path]:
-            print(f"{Colors.YELLOW}[MODIFIED] {path}{Colors.RESET}")
+            print(f"[MODIFIED] {path}")
             log_event(path, "MODIFIED")
+            send_alert(path, "修改")
             events_found = True
     return events_found
+
+#plyer模組用來發送桌面通知
+def send_alert(path, action):
+    notification.notify(
+        title="檔案異動警告",
+        message=f"{path} 被{action}",
+        timeout=10
+    )
 
 #主要執行函式
 def run_once(files_to_watch):
