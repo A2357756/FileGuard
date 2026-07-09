@@ -98,7 +98,10 @@ def choose_folder():
 
 def start_monitoring():
     folder = folder_path.get()
-    clear_files_for_folder(folder)
+    # 不再自動清空基準線:只有資料庫中完全沒有該資料夾的紀錄時
+    # (例如第一次監控這個資料夾,或使用者手動重置),才會重建基準線。
+    # 這樣「開始監控」可以重複按、程式可以重開,只要 guardian.db 還在,
+    # 基準線就會延續,不會每次都被清掉重建。
     status_label.configure(text="● 監控中", text_color=SUCCESS)
     start_btn.configure(state="disabled")
     stop_btn.configure(state="normal")
@@ -106,6 +109,13 @@ def start_monitoring():
     interval_entry.configure(state="disabled")
     exclude_entry.configure(state="disabled")
     scheduled_scan()
+
+def reset_baseline():
+    folder = folder_path.get()
+    if folder and folder != "尚未選擇資料夾":
+        clear_files_for_folder(folder)
+        status_label.configure(text="● 基準線已重置,下次掃描將重建", text_color=WARNING)
+        event_listbox.insert(0, f"[系統] 已手動重置「{folder}」的基準線")
 
 def stop_monitoring():
     global scan_job
@@ -123,7 +133,7 @@ init_db()
 scan_job = None
 
 root = ctk.CTk()
-root.title("AI Workspace Guardian")
+root.title = ("FileGuard")
 root.geometry("450x520")
 root.configure(fg_color=BG)
 
@@ -163,6 +173,15 @@ stop_btn = ctk.CTkButton(
     font=("Segoe UI", 12)
 )
 stop_btn.pack(side="left", padx=5)
+
+reset_btn = ctk.CTkButton(
+    btn_frame, text="重置基準線", command=reset_baseline,
+    corner_radius=10, height=36,
+    fg_color="white", hover_color="#FFF3E0",
+    border_width=1, border_color=WARNING, text_color=WARNING,
+    font=("Segoe UI", 12)
+)
+reset_btn.pack(side="left", padx=5)
 
 interval_var = tk.IntVar()
 interval_var.set(5)

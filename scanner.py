@@ -1,10 +1,7 @@
+import os
 from hasher import calculate_sha256
 
 def scan_files(filepaths):
-    """
-    輸入: ["test1.txt", "test2.txt"]
-    輸出: {"test1.txt": "abc123...", "test2.txt": "def456..."}
-    """
     result = {}
     for path in filepaths:
         try:
@@ -12,3 +9,14 @@ def scan_files(filepaths):
         except FileNotFoundError:
             print(f"[ERROR] 找不到檔案: {path}")
     return result
+
+def get_files_in_folder(folder, excluded_dirs=None):
+    if excluded_dirs is None:
+        excluded_dirs = set()
+    file_list = []
+    for dirpath, dirnames, filenames in os.walk(folder):
+        dirnames[:] = [d for d in dirnames if d not in excluded_dirs]
+        for filename in filenames:
+            full_path = os.path.join(dirpath, filename)
+            file_list.append(full_path)
+    return file_list

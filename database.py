@@ -1,6 +1,9 @@
 import sqlite3
+import os
 
-DB_FILE = "guardian.db"
+APP_DATA_DIR = os.path.join(os.getenv("APPDATA"), "FileGuard")
+os.makedirs(APP_DATA_DIR, exist_ok=True)
+DB_FILE = os.path.join(APP_DATA_DIR, "guardian.db")
 
 def init_db():
     conn = sqlite3.connect(DB_FILE)
