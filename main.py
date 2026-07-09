@@ -1,5 +1,6 @@
 import json
 import time
+import os
 import argparse
 import winsound
 from scanner import scan_files
@@ -30,24 +31,24 @@ def load_config():
 
 
 #比對新舊基準線
-def compare(old, new):
+def compare(folder, old, new):
     all_paths = set(old.keys()) | set(new.keys())
     events_found = False
     for path in all_paths:
         if path not in old:
             print(f"{Colors.GREEN}[CREATED] {path}{Colors.RESET}")
-            log_event(path, "CREATED")
+            log_event(folder, path, "CREATED")
             events_found = True
         elif path not in new:
             print(f"{Colors.RED}[DELETED] {path}{Colors.RESET}")
-            log_event(path, "DELETED")
+            log_event(folder, path, "DELETED")
             send_alert(path, "刪除")
             winsound.Beep(1000, 500)
-            delete_file(path)
+            delete_file(folder, path)
             events_found = True
         elif old[path] != new[path]:
             print(f"{Colors.YELLOW}[MODIFIED] {path}{Colors.RESET}")
-            log_event(path, "MODIFIED")
+            log_event(folder, path, "MODIFIED")
             send_alert(path, "修改")
             events_found = True
     return events_found
@@ -61,38 +62,37 @@ def send_alert(path, action):
     )
 
 #主要執行函式
-def run_once(files_to_watch):
-    baseline = get_baseline()
+def run_once(files_to_watch, folder):
+    baseline = get_baseline(folder)
     current = scan_files(files_to_watch)
     if not baseline:
         print("找不到基準線,建立中...")
         print("建立完成。")
     else:
-        compare(baseline, current)
+        compare(folder,baseline, current)
         print("掃描完成,目前無變化。")
     for path, sha256 in current.items():
-        update_file(path, sha256)
+        update_file(folder,path, sha256)
     
 #迴圈執行
 if __name__ == "__main__":
     init_db()
+    folder = os.getcwd()
     start_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
     parser = argparse.ArgumentParser(description="AI Workspace Guardian - 檔案完整性監控工具")
     parser.add_argument("--interval", type=int, default=5, help="掃描間隔秒數(預設 5 秒)")
     args = parser.parse_args()
     files_to_watch = load_config()
-
     print(f"開始監控,每 {args.interval} 秒掃描一次(Ctrl+C 停止)")
 
     try:
         while True:
-            run_once(files_to_watch)
+            run_once(files_to_watch, folder)
             time.sleep(args.interval)
     except KeyboardInterrupt:
         print("\n監控已停止。")
         print("\n=== 本次執行歷史事件 ===")
-        events = get_events_since(start_time)
+        events = get_events_since(folder, start_time)
         if not events:
             print("(本次執行期間無事件)")
         else:

@@ -74,3 +74,10 @@ def get_events_since(folder, start_time):
     rows = cursor.fetchall()
     conn.close()
     return rows
+
+def clear_files_for_folder(folder):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM files WHERE folder = ?", (folder,))
+    conn.commit()
+    conn.close()

@@ -1,19 +1,40 @@
+import customtkinter as ctk
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog
+from plyer import notification
 import os
 import sys
 import winsound
 
+ctk.set_appearance_mode("light")
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from scanner import scan_files
-from database import init_db, log_event, get_baseline, update_file, delete_file
+from database import init_db, log_event, get_baseline, update_file, delete_file, clear_files_for_folder
 
-def get_files_in_folder(folder):
+# ===== Color Palette =====
+PRIMARY = "#2563EB"
+PRIMARY_HOVER = "#1D4ED8"
+PRIMARY_ACTIVE = "#1E40AF"
+
+BG = "#F5F9FF"
+CARD = "#FFFFFF"
+
+TEXT = "#334155"
+TEXT_LIGHT = "#64748B"
+TITLE = "#1E3A8A"
+
+BORDER = "#CBD5E1"
+SUCCESS = "#22C55E"
+WARNING = "#F59E0B"
+ERROR = "#EF4444"
+
+def get_files_in_folder(folder, excluded_dirs):
     file_list = []
-    for filename in os.listdir(folder):
-        full_path = os.path.join(folder, filename)
-        if os.path.isfile(full_path):
+    for dirpath, dirnames, filenames in os.walk(folder):
+        dirnames[:] = [d for d in dirnames if d not in excluded_dirs]
+        for filename in filenames:
+            full_path = os.path.join(dirpath, filename)
             file_list.append(full_path)
     return file_list
 
@@ -29,27 +50,36 @@ def compare(folder, old, new):
             log_event(folder, path, "DELETED")
             delete_file(folder, path)
             winsound.Beep(1000, 500)
-            messagebox.showwarning("檔案異動警告", f"{path} 被刪除")
+            notification.notify(
+                title="檔案異動警告",
+                message=f"{path} 被刪除",
+                timeout=10
+            )
             event_listbox.insert(0, f"[DELETED] {path}")
             events_found = True
         elif old[path] != new[path]:
             log_event(folder, path, "MODIFIED")
-            messagebox.showwarning("檔案異動警告", f"{path} 被修改")
+            notification.notify(
+                title="檔案異動警告",
+                message=f"{path} 被修改",
+                timeout=10
+            )
             event_listbox.insert(0, f"[MODIFIED] {path}")
             events_found = True
     return events_found
 
 def scan_once():
     folder = folder_path.get()
-    files_to_watch = get_files_in_folder(folder)
+    excluded_dirs = {name.strip() for name in exclude_var.get().split(",") if name.strip()}
+    files_to_watch = get_files_in_folder(folder, excluded_dirs)
     baseline = get_baseline(folder)
     current = scan_files(files_to_watch)
 
     if not baseline:
-        status_label.config(text="狀態:建立基準線中...")
+        status_label.configure(text="● 建立基準線中...", text_color=WARNING)
     else:
         compare(folder, baseline, current)
-        status_label.config(text="狀態:監控中")
+        status_label.configure(text="● 監控中", text_color=SUCCESS)
 
     for path, sha256 in current.items():
         update_file(folder, path, sha256)
@@ -57,56 +87,138 @@ def scan_once():
 def scheduled_scan():
     global scan_job
     scan_once()
-    scan_job = root.after(5000, scheduled_scan)  # 5 秒後再排程一次
+    interval_ms = interval_var.get() * 1000
+    scan_job = root.after(interval_ms, scheduled_scan)
 
 def choose_folder():
     folder = filedialog.askdirectory()
     if folder:
         folder_path.set(folder)
-        start_btn.config(state="normal")
+        start_btn.configure(state="normal")
 
 def start_monitoring():
-    status_label.config(text="狀態:監控中")
-    start_btn.config(state="disabled")
-    stop_btn.config(state="normal")
-    scheduled_scan()  # 立刻開始第一次掃描,並啟動排程
+    folder = folder_path.get()
+    clear_files_for_folder(folder)
+    status_label.configure(text="● 監控中", text_color=SUCCESS)
+    start_btn.configure(state="disabled")
+    stop_btn.configure(state="normal")
+    choose_btn.configure(state="disabled")
+    interval_entry.configure(state="disabled")
+    exclude_entry.configure(state="disabled")
+    scheduled_scan()
 
 def stop_monitoring():
     global scan_job
     if scan_job is not None:
-        root.after_cancel(scan_job)  # 取消排程,停止繼續掃描
+        root.after_cancel(scan_job)
         scan_job = None
-    status_label.config(text="狀態:已停止")
-    start_btn.config(state="normal")
-    stop_btn.config(state="disabled")
+    status_label.configure(text="● 已停止", text_color=ERROR)
+    start_btn.configure(state="normal")
+    stop_btn.configure(state="disabled")
+    choose_btn.configure(state="normal")
+    interval_entry.configure(state="normal")
+    exclude_entry.configure(state="normal")
 
 init_db()
 scan_job = None
 
-
-root = tk.Tk()
+root = ctk.CTk()
 root.title("AI Workspace Guardian")
-root.geometry("400x300")
+root.geometry("450x520")
+root.configure(fg_color=BG)
 
 folder_path = tk.StringVar()
 folder_path.set("尚未選擇資料夾")
 
-choose_btn = tk.Button(root, text="選擇監控資料夾", command=choose_folder)
+choose_btn = ctk.CTkButton(
+    root, text="選擇監控資料夾", command=choose_folder,
+    corner_radius=10, height=38,
+    fg_color=PRIMARY, hover_color=PRIMARY_HOVER, text_color="white",
+    font=("Segoe UI", 12)
+)
 choose_btn.pack(pady=10)
 
-label = tk.Label(root, textvariable=folder_path, wraplength=350)
+label = ctk.CTkLabel(
+    root, textvariable=folder_path, wraplength=350,
+    text_color=TEXT, font=("Segoe UI", 12)
+)
 label.pack(pady=10)
 
-start_btn = tk.Button(root, text="開始監控", command=start_monitoring, state="disabled")
-start_btn.pack(pady=5)
+btn_frame = ctk.CTkFrame(root, fg_color="transparent")
+btn_frame.pack(pady=5)
 
-stop_btn = tk.Button(root, text="停止監控", command=stop_monitoring, state="disabled")
-stop_btn.pack(pady=5)
+start_btn = ctk.CTkButton(
+    btn_frame, text="開始監控", command=start_monitoring, state="disabled",
+    corner_radius=10, height=36,
+    fg_color=PRIMARY, hover_color=PRIMARY_HOVER, text_color="white",
+    font=("Segoe UI", 12)
+)
+start_btn.pack(side="left", padx=5)
 
-status_label = tk.Label(root, text="狀態:尚未開始")
-status_label.pack(pady=10)
+stop_btn = ctk.CTkButton(
+    btn_frame, text="停止監控", command=stop_monitoring, state="disabled",
+    corner_radius=10, height=36,
+    fg_color="white", hover_color="#EEF4FF",
+    border_width=1, border_color=PRIMARY, text_color=PRIMARY,
+    font=("Segoe UI", 12)
+)
+stop_btn.pack(side="left", padx=5)
 
-event_listbox = tk.Listbox(root, width=50, height=8)  # 放在 root 建立之後
-event_listbox.pack(pady=10)
+interval_var = tk.IntVar()
+interval_var.set(5)
+
+interval_frame = ctk.CTkFrame(root, fg_color="transparent")
+interval_frame.pack(pady=5)
+
+interval_label = ctk.CTkLabel(
+    interval_frame, text="掃描間隔(秒):",
+    text_color=TEXT_LIGHT, font=("Segoe UI", 12)
+)
+interval_label.pack(side="left")
+
+interval_entry = ctk.CTkEntry(
+    interval_frame, textvariable=interval_var, width=55,
+    fg_color=CARD, border_color=BORDER, text_color=TEXT, corner_radius=8
+)
+interval_entry.pack(side="left", padx=5)
+
+exclude_var = tk.StringVar()
+exclude_var.set("__pycache__, venv, .git")
+
+exclude_frame = ctk.CTkFrame(root, fg_color="transparent")
+exclude_frame.pack(pady=5)
+
+exclude_label = ctk.CTkLabel(
+    exclude_frame, text="排除資料夾:",
+    text_color=TEXT_LIGHT, font=("Segoe UI", 12)
+)
+exclude_label.pack(side="left")
+
+exclude_entry = ctk.CTkEntry(
+    exclude_frame, textvariable=exclude_var, width=220,
+    fg_color=CARD, border_color=BORDER, text_color=TEXT, corner_radius=8
+)
+exclude_entry.pack(side="left", padx=5)
+
+status_label = ctk.CTkLabel(
+    root, text="● 尚未開始",
+    font=("Segoe UI", 14, "bold"), text_color=TEXT_LIGHT
+)
+status_label.pack(pady=10, fill="x")
+
+log_label = ctk.CTkLabel(
+    root, text="事件紀錄",
+    font=("Segoe UI", 12, "bold"), text_color=TITLE
+)
+log_label.pack(anchor="w", padx=18, pady=(10, 4))
+
+event_listbox = tk.Listbox(
+    root, width=50, height=8,
+    bg="#FFFFFF", fg=TEXT,
+    selectbackground=PRIMARY, selectforeground="white",
+    borderwidth=1, highlightthickness=1, highlightbackground=BORDER,
+    relief="solid", font=("Segoe UI", 10)
+)
+event_listbox.pack(pady=10, padx=15, fill="both", expand=True)
 
 root.mainloop()
