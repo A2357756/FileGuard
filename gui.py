@@ -147,6 +147,7 @@ root = ctk.CTk()
 root.title("FileGuard")
 root.geometry("450x520")
 root.configure(fg_color=BG)
+root.iconbitmap("fileguard_icon.ico")
 
 header = ctk.CTkFrame(
     root,

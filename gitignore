@@ -3,3 +3,5 @@ __pycache__/
 *.pyc
 guardian.db
 baseline.json
+dist/
+.venv/
