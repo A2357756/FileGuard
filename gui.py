@@ -13,21 +13,32 @@ from scanner import scan_files
 from database import init_db, log_event, get_baseline, update_file, delete_file, clear_files_for_folder
 
 # ===== Color Palette =====
-PRIMARY = "#2563EB"
-PRIMARY_HOVER = "#1D4ED8"
-PRIMARY_ACTIVE = "#1E40AF"
 
-BG = "#F5F9FF"
+# Brand
+PRIMARY = "#0F766E"
+PRIMARY_HOVER = "#115E59"
+PRIMARY_ACTIVE = "#134E4A"
+
+NAVY = "#0F172A"
+TEAL_LIGHT = "#CCFBF1"
+BLUE_ACCENT = "#2563EB"
+
+# Background
+BG = "#F8FAFC"
 CARD = "#FFFFFF"
 
-TEXT = "#334155"
+# Text
+TEXT = "#0F172A"
 TEXT_LIGHT = "#64748B"
-TITLE = "#1E3A8A"
+TITLE = "#0F172A"
 
+# Border
 BORDER = "#CBD5E1"
-SUCCESS = "#22C55E"
+
+# Status
+SUCCESS = "#10B981"
 WARNING = "#F59E0B"
-ERROR = "#EF4444"
+ERROR = "#DC2626"
 
 def get_files_in_folder(folder, excluded_dirs):
     file_list = []
@@ -70,7 +81,7 @@ def compare(folder, old, new):
 
 def scan_once():
     folder = folder_path.get()
-    excluded_dirs = {name.strip() for name in exclude_var.get().split(",") if name.strip()}
+    excluded_dirs = {name.strip() for name in exclude_entry.get().split(",") if name.strip()}
     files_to_watch = get_files_in_folder(folder, excluded_dirs)
     baseline = get_baseline(folder)
     current = scan_files(files_to_watch)
@@ -133,9 +144,35 @@ init_db()
 scan_job = None
 
 root = ctk.CTk()
-root.title = ("FileGuard")
+root.title("FileGuard")
 root.geometry("450x520")
 root.configure(fg_color=BG)
+
+header = ctk.CTkFrame(
+    root,
+    fg_color=NAVY,
+    corner_radius=0,
+    height=55
+)
+
+header.pack(
+    fill="x"
+)
+header.pack_propagate(False)
+
+title_label = ctk.CTkLabel(
+    header,
+    text="🛡  FileGuard",
+    text_color="white",
+    font=("Segoe UI", 22, "bold")
+)
+
+title_label.pack(
+    anchor="w",
+    padx=20,
+    pady=(12, 0)
+)
+
 
 folder_path = tk.StringVar()
 folder_path.set("尚未選擇資料夾")
@@ -201,9 +238,6 @@ interval_entry = ctk.CTkEntry(
 )
 interval_entry.pack(side="left", padx=5)
 
-exclude_var = tk.StringVar()
-exclude_var.set("__pycache__, venv, .git")
-
 exclude_frame = ctk.CTkFrame(root, fg_color="transparent")
 exclude_frame.pack(pady=5)
 
@@ -214,10 +248,12 @@ exclude_label = ctk.CTkLabel(
 exclude_label.pack(side="left")
 
 exclude_entry = ctk.CTkEntry(
-    exclude_frame, textvariable=exclude_var, width=220,
+    exclude_frame, width=220,
+    placeholder_text="請輸入排除資料夾（例如：.git, venv）",
     fg_color=CARD, border_color=BORDER, text_color=TEXT, corner_radius=8
 )
 exclude_entry.pack(side="left", padx=5)
+
 
 status_label = ctk.CTkLabel(
     root, text="● 尚未開始",
