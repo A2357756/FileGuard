@@ -1,100 +1,80 @@
-# FileGuard 
+# FileGuard
 
 一款輕量級的**檔案完整性監控工具(File Integrity Monitoring, FIM)**,用於偵測指定檔案或資料夾內的未預期異動(新增 / 修改 / 刪除)。設計初衷是為了在使用 AI 輔助開發工具(Claude Code、Cursor 等)時,即時掌握專案關鍵檔案是否被意外修改。
 
-提供 **命令列(CLI)** 與 **圖形化介面(GUI)** 兩種使用方式。
+提供 **圖形化介面(GUI,Windows)** 與 **命令列(CLI,跨平台)** 兩種使用方式。
 
 ---
+
 ## 安裝
 
-建議在虛擬環境中安裝,避免污染系統全域 Python 環境:
+### GUI 版本(Windows)
+
+直接下載安裝程式,不需要安裝 Python 或任何相依套件:
+
+1. 前往 [Releases 頁面](../../releases) 下載最新版 `FileGuard_Setup.exe`
+2. 雙擊執行,依安裝精靈指示完成安裝
+3. 若 Windows 跳出「SmartScreen 已封鎖此應用程式」的藍色警告畫面,這是正常現象(因為安裝程式沒有數位簽章)。點擊「其他資訊」→「仍要執行」即可繼續安裝
+4. 安裝完成後,桌面與開始功能表會出現 FileGuard 捷徑
+
+### CLI 版本(跨平台:Windows / Linux / macOS)
+
+需要 Python 3 環境,用 `git clone` 取得原始碼後在虛擬環境中安裝:
 
 ```bash
-python -m venv venv
-venv\Scripts\activate        # Windows
-# source venv/bin/activate   # macOS / Linux
+git clone https://github.com/你的帳號/FileGuard.git
+cd FileGuard
 
+# 建立並啟用虛擬環境
+python3 -m venv venv
+source venv/bin/activate        # Linux / macOS
+# venv\Scripts\activate         # Windows
+
+# 安裝相依套件
 pip install -r requirements.txt
 ```
 
----
-
-## 使用方式
-
-### CLI 版本
-
-`config.json` 支援兩種監控資料選擇,兩者同時存在時,以 `watch_folder`(資料夾)優先。
-
-```json
-{
-    "watch_folder": "C:/Users/SCE/Desktop/test_folder",
-    "exclude_dirs": ["__pycache__", "venv", ".git"],
-    "watch_files": [
-    "test1.txt",
-    "C:/Users/SCE/Desktop/test.txt"]
-}
-```
-
-- `watch_folder`:要監控的資料夾路徑(單一字串,路徑用正斜線 `/`)
-- `watch_files`:要監控的檔案，無路徑即預設為本體所在資料夾內
-- `exclude_dirs`:掃描時要跳過的子資料夾名稱(陣列,可省略)
-- 每輪掃描都會重新走訪資料夾,能偵測到新增的檔案
-- 只監控清單中列出的檔案,不會遞迴掃描
-
-**執行:**
-
-1. 編輯 `config.json`,依上述任一模式設定監控目標
-2. 執行:
-   ```bash
-   python main.py                 # 預設每 5 秒掃描一次
-   python main.py --interval 10   # 自訂掃描間隔
-   ```
-3. 按 `Ctrl+C` 停止監控,終端機會列出本次執行期間的完整事件歷史。
-
-### GUI 版本
-
-```bash
-python gui.py
-```
-
-1. 點擊「選擇監控資料夾」選取要監控的資料夾(會遞迴掃描所有子資料夾)
-2. 視需求調整「掃描間隔」與「排除資料夾」(預設排除 `__pycache__`、`venv`、`.git`)
-3. 點擊「開始監控」
-4. 偵測到異動時,會跳出系統通知,並記錄在畫面下方的事件清單
-5. 可同時開啟多個終端機分頁,各自執行 `python gui.py` 監控不同資料夾
+> **Linux 環境提醒**:部分精簡版發行版(如 WSL)可能沒有內建 `python3-venv`,若 `python3 -m venv venv` 失敗,先執行 `sudo apt update && sudo apt install python3-venv`。另外,若專案放在 Windows 掛載磁碟(如 WSL 的 `/mnt/c/...`)下建立虛擬環境可能因權限問題失敗,建議放在 Linux 原生檔案系統路徑(如 `~/`)下操作。
 
 ---
-
 
 ## 功能特色
 
-- **SHA256 雜湊比對**:透過檔案內容雜湊值判斷變化,而非單純比對修改時間,避免誤判
 - **SQLite 持久化儲存**:
   - `events` 表:完整的歷史異動紀錄(可追溯)
   - `files` 表:每個檔案目前的雜湊狀態
   - 支援**多監控目標並存**,不同資料夾的基準線互不干擾
-- **GUI 版本額外功能**:
+- **多層提醒機制**,每一層都有容錯處理,單一管道失敗不影響監控本身:
+  - 系統桌面通知(不打斷操作)
+  - 提示音(刪除事件)
+  - **Discord Webhook**:可推送到自己的 Discord 頻道,適合背景 / 遠端主機使用情境
+- **排除規則**:可自訂排除資料夾(如 `.git`、`venv`)與排除檔案樣式(如 `*.swp`、`Thumbs.db`,避免編輯器暫存檔造成誤報)
+- **GUI 版本(Windows)**:
   - 資料夾選取、遞迴掃描子資料夾
-  - 可自訂掃描間隔、可自訂排除資料夾清單
+  - 可自訂掃描間隔、排除資料夾、排除檔案樣式、Discord Webhook,皆可於畫面上直接設定
+  - 可透過核取方塊一鍵關閉系統通知與提示音(不影響事件紀錄與 Discord Webhook 推送)
   - 即時事件清單顯示
   - 支援同時開啟多個視窗,監控不同資料夾
-- **CLI 版本額外功能**:
+  - 提供正式安裝程式(桌面捷徑、開始功能表、可解除安裝)
+- **CLI 版本(跨平台,Windows / Linux 皆已驗證)**:
   - 可調整掃描間隔(`--interval`)
-  - 結束時列出本次執行的完整事件歷史
-  - 完善的錯誤處理(設定檔遺失、格式錯誤等情境皆有對應的中文提示)
+  - 支援監控整個資料夾(遞迴掃描)或個別檔案清單,兩種模式擇一
+  - Ctrl+C 優雅中斷,結束時列出本次執行的完整事件歷史
+  - 依作業系統自動切換提示音與資料儲存路徑
+- 完善的錯誤處理(設定檔遺失、格式錯誤、通知管道失敗等情境皆有對應提示,不會中斷監控)
 
 ---
 
 ## 專案架構
 
 ```
-FileGuard/
-├─ main.py          # CLI 進入點
-├─ gui.py            # GUI 進入點(customtkinter)
+fileguard/
+├─ main.py          # CLI 進入點(跨平台)
+├─ gui.py            # GUI 進入點(customtkinter,Windows 專用)
 ├─ hasher.py         # SHA256 雜湊計算
-├─ scanner.py        # 多檔案掃描
-├─ database.py       # SQLite 讀寫(events / files 表)
-├─ config.json       # CLI 監控清單設定
+├─ scanner.py        # 多檔案掃描、資料夾遞迴、排除規則
+├─ database.py       # SQLite 讀寫(events / files 表,跨平台儲存路徑)
+├─ config.json       # CLI 監控設定(僅 CLI 版本使用,GUI 版本設定皆透過畫面操作)
 ├─ requirements.txt  # 相依套件
 └─ .gitignore
 ```
@@ -112,22 +92,11 @@ FileGuard/
 | 資料庫 | `sqlite3`,組合主鍵 `(folder, path)` 支援多目標監控 |
 | CLI 參數解析 | `argparse` |
 | GUI 框架 | `customtkinter`(基於 `tkinter`) |
-| 系統通知 | `plyer` |
-| 提示音效 | `winsound`(Windows) |
-
----
-
-
-
-## 設計上的取捨與學習紀錄
-
-這個專案從最初預計 3 天完成的 CLI 小工具,逐步擴展為支援 GUI、多資料夾監控的完整專案。過程中幾個值得記錄的設計決策:
-
-- **JSON → SQLite**:初期用 `baseline.json` 存基準線,隨著需要「歷史事件紀錄」與「多目標支援」等需求,改用 SQLite 的兩張表分別處理「當前狀態」與「歷史紀錄」
-- **`(folder, path)` 組合主鍵**:當監控範圍(資料夾或排除清單)改變時,若沿用單一 `path` 主鍵會導致基準線與新範圍不匹配,產生大量誤判的 DELETED 事件。改用組合主鍵後,不同監控目標的基準線彼此獨立
-- **`while + sleep` vs `root.after()`**:CLI 版本用阻塞式的 `while True: sleep()` 迴圈即可,但 GUI 必須改用 `tkinter` 的事件排程機制(`root.after()`),避免阻塞主事件迴圈導致視窗凍結
-- **通知機制取捨**:一開始使用 `messagebox`(強制彈窗),後改為 `plyer` 系統通知(不阻塞、不打斷操作),更符合背景監控的使用情境
-- **共用模組重構**:資料夾遞迴掃描邏輯(`get_files_in_folder`)最初只寫在 GUI 版本裡,後來讓 CLI 版本也支援資料夾監控時,將其搬移至 `scanner.py`,讓兩個介面共用同一份邏輯,避免重複程式碼與行為不一致
+| 系統通知 | `plyer`(無桌面環境時自動略過並印出警告,不中斷程式) |
+| 提示音效 | `winsound`(Windows)/ 終端機響鈴(Linux / macOS) |
+| Webhook 通知 | `requests`(POST 至 Discord Webhook) |
+| 資料儲存路徑 | `%APPDATA%`(Windows)/ `~/.config`(Linux / macOS) |
+| GUI 打包 | PyInstaller + Inno Setup(產生正式安裝程式) |
 
 ---
 

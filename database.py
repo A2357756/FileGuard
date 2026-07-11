@@ -1,7 +1,16 @@
 import sqlite3
 import os
+import platform
 
-APP_DATA_DIR = os.path.join(os.getenv("APPDATA"), "FileGuard")
+def get_app_data_dir():
+    system = platform.system()
+    if system == "Windows":
+        base = os.getenv("APPDATA")
+    else:
+        base = os.path.join(os.path.expanduser("~"), ".config")
+    return os.path.join(base, "FileGuard")
+
+APP_DATA_DIR = get_app_data_dir()
 os.makedirs(APP_DATA_DIR, exist_ok=True)
 DB_FILE = os.path.join(APP_DATA_DIR, "guardian.db")
 

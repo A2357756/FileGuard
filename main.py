@@ -2,9 +2,9 @@ import json
 import time
 import os
 import argparse
-import winsound
-from scanner import scan_files, get_files_in_folder
+import requests
 import datetime
+from scanner import scan_files, get_files_in_folder
 from database import init_db, log_event, get_baseline, update_file, delete_file, get_events_since
 from plyer import notification
 
@@ -14,6 +14,17 @@ class Colors:
     GREEN = "\033[92m"
     RESET = "\033[0m"
 
+def send_webhook(webhook_url, path, action):
+    if not webhook_url:
+        return
+    try:
+        requests.post(
+            webhook_url,
+            json={"content": f"🚨 **檔案異動警告**\n`{path}` 被{action}"},
+            timeout=5
+        )
+    except requests.exceptions.RequestException as e:
+        print(f"[警告] Webhook 發送失敗: {e}")
 #讀取config
 def load_config():
     try:
@@ -29,15 +40,16 @@ def load_config():
 
     watch_folder = config.get("watch_folder", "").strip()
     excluded_dirs = set(config.get("exclude_dirs", []))
+    excluded_patterns = config.get("exclude_patterns", [])
     watch_files = config.get("watch_files", [])
+    discord_webhook_url = config.get("discord_webhook_url", "").strip()
 
     folder_id = watch_folder if watch_folder else os.getcwd()
 
-    return watch_folder, excluded_dirs, watch_files, folder_id
-
+    return watch_folder, excluded_dirs, excluded_patterns, watch_files, folder_id, discord_webhook_url
 
 #比對新舊基準線
-def compare(folder, old, new):
+def compare(folder, old, new, webhook_url):
     all_paths = set(old.keys()) | set(new.keys())
     events_found = False
     for path in all_paths:
@@ -49,28 +61,33 @@ def compare(folder, old, new):
             print(f"{Colors.RED}[DELETED] {path}{Colors.RESET}")
             log_event(folder, path, "DELETED")
             send_alert(path, "刪除")
-            winsound.Beep(1000, 500)
+            send_webhook(webhook_url, path, "刪除")
+            print("\a", end="", flush=True)
             delete_file(folder, path)
             events_found = True
         elif old[path] != new[path]:
             print(f"{Colors.YELLOW}[MODIFIED] {path}{Colors.RESET}")
             log_event(folder, path, "MODIFIED")
             send_alert(path, "修改")
+            send_webhook(webhook_url, path, "修改")
             events_found = True
     return events_found
 
 #plyer模組用來發送桌面通知
 def send_alert(path, action):
-    notification.notify(
-        title="檔案異動警告",
-        message=f"{path} 被{action}",
-        timeout=10
-    )
+    try:
+        notification.notify(
+            title="檔案異動警告",
+            message=f"{path} 被{action}",
+            timeout=10
+        )
+    except Exception as e:
+        print(f"[警告] 系統通知發送失敗: {e}")
 
 #主要執行函式
-def run_once(watch_folder, excluded_dirs, watch_files, folder):
+def run_once(watch_folder, excluded_dirs, excluded_patterns, watch_files, folder, webhook_url):
     if watch_folder:
-        files_to_watch = get_files_in_folder(watch_folder, excluded_dirs)
+        files_to_watch = get_files_in_folder(watch_folder, excluded_dirs, excluded_patterns)
     else:
         files_to_watch = watch_files
 
@@ -94,7 +111,7 @@ def run_once(watch_folder, excluded_dirs, watch_files, folder):
         print(f"找不到基準線,建立中...(本次掃到 {len(current)} 個檔案)")
         print("建立完成。")
     else:
-        events_found = compare(folder, baseline, current)
+        events_found = compare(folder, baseline, current, webhook_url)
         if not events_found:
             print("掃描完成,目前無變化。")
 
@@ -109,14 +126,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="FileGuard - 檔案完整性監控工具")
     parser.add_argument("--interval", type=int, default=5, help="掃描間隔秒數(預設 5 秒)")
     args = parser.parse_args()
-
-    watch_folder, excluded_dirs, watch_files, folder = load_config()
-
+    watch_folder, excluded_dirs, excluded_patterns, watch_files, folder, discord_webhook_url = load_config()
     print(f"開始監控,每 {args.interval} 秒掃描一次(Ctrl+C 停止)")
 
     try:
         while True:
-            run_once(watch_folder, excluded_dirs, watch_files, folder)
+            run_once(watch_folder, excluded_dirs, excluded_patterns, watch_files, folder, discord_webhook_url)
             time.sleep(args.interval)
     except KeyboardInterrupt:
         print("\n監控已停止。")

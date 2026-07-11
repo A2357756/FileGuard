@@ -1,15 +1,17 @@
+import os
+import sys
+import winsound
+import requests
 import customtkinter as ctk
 import tkinter as tk
 from tkinter import filedialog
 from plyer import notification
-import os
-import sys
-import winsound
+from scanner import scan_files, get_files_in_folder
+
 
 ctk.set_appearance_mode("light")
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from scanner import scan_files
 from database import init_db, log_event, get_baseline, update_file, delete_file, clear_files_for_folder
 
 # ===== Color Palette =====
@@ -40,18 +42,25 @@ SUCCESS = "#10B981"
 WARNING = "#F59E0B"
 ERROR = "#DC2626"
 
-def get_files_in_folder(folder, excluded_dirs):
-    file_list = []
-    for dirpath, dirnames, filenames in os.walk(folder):
-        dirnames[:] = [d for d in dirnames if d not in excluded_dirs]
-        for filename in filenames:
-            full_path = os.path.join(dirpath, filename)
-            file_list.append(full_path)
-    return file_list
+def send_discord_webhook(webhook_url, path, action):
+    if not webhook_url:
+        return
+    try:
+        requests.post(
+            webhook_url,
+            json={"content": f"🚨 **檔案異動警告**\n`{path}` 被{action}"},
+            timeout=5
+        )
+    except requests.exceptions.RequestException as e:
+        print(f"[警告] Webhook 發送失敗: {e}")
+
 
 def compare(folder, old, new):
     all_paths = set(old.keys()) | set(new.keys())
     events_found = False
+    webhook_url = webhook_var.get().strip()
+    sound_notify_enabled = sound_notify_var.get()
+
     for path in all_paths:
         if path not in old:
             log_event(folder, path, "CREATED")
@@ -60,29 +69,34 @@ def compare(folder, old, new):
         elif path not in new:
             log_event(folder, path, "DELETED")
             delete_file(folder, path)
-            winsound.Beep(1000, 500)
-            notification.notify(
-                title="檔案異動警告",
-                message=f"{path} 被刪除",
-                timeout=10
-            )
+            if sound_notify_enabled:
+                winsound.Beep(1000, 500)
+                notification.notify(
+                    title="檔案異動警告",
+                    message=f"{path} 被刪除",
+                    timeout=10
+                )
+            send_discord_webhook(webhook_url, path, "刪除")
             event_listbox.insert(0, f"[DELETED] {path}")
             events_found = True
         elif old[path] != new[path]:
             log_event(folder, path, "MODIFIED")
-            notification.notify(
-                title="檔案異動警告",
-                message=f"{path} 被修改",
-                timeout=10
-            )
+            if sound_notify_enabled:
+                notification.notify(
+                    title="檔案異動警告",
+                    message=f"{path} 被修改",
+                    timeout=10
+                )
+            send_discord_webhook(webhook_url, path, "修改")
             event_listbox.insert(0, f"[MODIFIED] {path}")
             events_found = True
     return events_found
 
 def scan_once():
     folder = folder_path.get()
-    excluded_dirs = {name.strip() for name in exclude_entry.get().split(",") if name.strip()}
-    files_to_watch = get_files_in_folder(folder, excluded_dirs)
+    excluded_dirs = {name.strip() for name in exclude_var.get().split(",") if name.strip()}
+    excluded_patterns = [p.strip() for p in pattern_var.get().split(",") if p.strip()]
+    files_to_watch = get_files_in_folder(folder, excluded_dirs, excluded_patterns)
     baseline = get_baseline(folder)
     current = scan_files(files_to_watch)
 
@@ -119,6 +133,9 @@ def start_monitoring():
     choose_btn.configure(state="disabled")
     interval_entry.configure(state="disabled")
     exclude_entry.configure(state="disabled")
+    pattern_entry.configure(state="disabled")
+    webhook_entry.configure(state="disabled")
+    sound_notify_checkbox.configure(state="disabled")
     scheduled_scan()
 
 def reset_baseline():
@@ -139,13 +156,17 @@ def stop_monitoring():
     choose_btn.configure(state="normal")
     interval_entry.configure(state="normal")
     exclude_entry.configure(state="normal")
+    pattern_entry.configure(state="normal")
+    webhook_entry.configure(state="disabled")
+    sound_notify_checkbox.configure(state="normal")
+
 
 init_db()
 scan_job = None
 
 root = ctk.CTk()
 root.title("FileGuard")
-root.geometry("450x520")
+root.geometry("450x600")
 root.configure(fg_color=BG)
 root.iconbitmap("fileguard_icon.ico")
 
@@ -174,6 +195,54 @@ title_label.pack(
     pady=(12, 0)
 )
 
+pattern_var = tk.StringVar()
+pattern_var.set("*.swp, *.swo, *~, .DS_Store, Thumbs.db")
+
+pattern_frame = ctk.CTkFrame(root, fg_color="transparent")
+pattern_frame.pack(pady=5)
+
+pattern_label = ctk.CTkLabel(
+    pattern_frame, text="排除檔案樣式:",
+    text_color=TEXT_LIGHT, font=("Segoe UI", 12)
+)
+pattern_label.pack(side="left")
+
+pattern_entry = ctk.CTkEntry(
+    pattern_frame, textvariable=pattern_var, width=220,
+    fg_color=CARD, border_color=BORDER, text_color=TEXT, corner_radius=8
+)
+pattern_entry.pack(side="left", padx=5)
+
+
+webhook_var = tk.StringVar()
+
+webhook_frame = ctk.CTkFrame(root, fg_color="transparent")
+webhook_frame.pack(pady=5)
+
+webhook_label = ctk.CTkLabel(
+    webhook_frame, text="Discord Webhook:",
+    text_color=TEXT_LIGHT, font=("Segoe UI", 12)
+)
+webhook_label.pack(side="left")
+
+webhook_entry = ctk.CTkEntry(
+    webhook_frame, textvariable=webhook_var, width=220,
+    placeholder_text="選填,貼上你的 Webhook 網址",
+    fg_color=CARD, border_color=BORDER, text_color=TEXT, corner_radius=8
+)
+webhook_entry.pack(side="left", padx=5)
+
+sound_notify_var = tk.BooleanVar()
+sound_notify_var.set(True)  # 預設開啟
+
+sound_notify_checkbox = ctk.CTkCheckBox(
+    root, text="啟用系統通知與提示音",
+    variable=sound_notify_var,
+    text_color=TEXT, font=("Segoe UI", 12),
+    fg_color=PRIMARY, hover_color=PRIMARY_HOVER
+)
+sound_notify_checkbox.pack(pady=5)
+
 
 folder_path = tk.StringVar()
 folder_path.set("尚未選擇資料夾")
@@ -194,6 +263,8 @@ label.pack(pady=10)
 
 btn_frame = ctk.CTkFrame(root, fg_color="transparent")
 btn_frame.pack(pady=5)
+
+
 
 start_btn = ctk.CTkButton(
     btn_frame, text="開始監控", command=start_monitoring, state="disabled",
@@ -239,6 +310,9 @@ interval_entry = ctk.CTkEntry(
 )
 interval_entry.pack(side="left", padx=5)
 
+exclude_var = tk.StringVar()
+exclude_var.set("__pycache__, venv, .git")
+
 exclude_frame = ctk.CTkFrame(root, fg_color="transparent")
 exclude_frame.pack(pady=5)
 
@@ -249,8 +323,7 @@ exclude_label = ctk.CTkLabel(
 exclude_label.pack(side="left")
 
 exclude_entry = ctk.CTkEntry(
-    exclude_frame, width=220,
-    placeholder_text="請輸入排除資料夾（例如：.git, venv）",
+    exclude_frame, textvariable=exclude_var, width=220,
     fg_color=CARD, border_color=BORDER, text_color=TEXT, corner_radius=8
 )
 exclude_entry.pack(side="left", padx=5)
