@@ -5,4 +5,8 @@ __pycache__/
 build/
 dist/
 .venv/
-.installer_output
+guardian.db
+__pycache__/
+build/FileGuard/
+installer_output/
+FileGuard.spec
