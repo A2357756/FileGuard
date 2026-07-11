@@ -22,7 +22,7 @@
 需要 Python 3 環境,用 `git clone` 取得原始碼後在虛擬環境中安裝:
 
 ```bash
-git clone https://github.com/你的帳號/FileGuard.git
+git clone https://github.com/a2357756/FileGuard.git
 cd FileGuard
 
 # 建立並啟用虛擬環境
