@@ -1,7 +1,7 @@
 {
-    "watch_folder": "test",
-    "discord_webhook_url": "https://discordapp.com/api/webhooks/1525470667019915264/qsGB9KBSRstLL-7uwXdWymKIckBO5-LUAlAqapWoiRN7dtcUCcV19etf4YP_OPtar1Md",
+    "watch_folder": "",
+    "watch_files": ["test1.txt", "test2.txt"],
     "exclude_dirs": ["__pycache__", "venv", ".git"],
-    "exclude_patterns": ["*.swp", "*.swo", "*~"],
-    "watch_files": ["test1.txt", "test2.txt"]
+    "exclude_patterns": ["*.swp", "*.swo", "*~", ".DS_Store", "Thumbs.db"],
+    "discord_webhook_url": ""
 }
