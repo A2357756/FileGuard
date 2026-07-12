@@ -4,6 +4,8 @@
 
 提供 **圖形化介面(GUI,Windows)** 與 **命令列(CLI,跨平台)** 兩種使用方式。
 
+本專案使用claude聊天模式輔助，使用零碎時間完成，實際開發時間約為五天，
+
 ---
 
 ## 安裝
@@ -97,6 +99,12 @@ fileguard/
 | Webhook 通知 | `requests`(POST 至 Discord Webhook) |
 | 資料儲存路徑 | `%APPDATA%`(Windows)/ `~/.config`(Linux / macOS) |
 | GUI 打包 | PyInstaller + Inno Setup(產生正式安裝程式) |
+
+---
+
+## 開發說明
+
+本專案全程使用 Claude Chat 協助開發，並利用零碎時間完成，實際開發時間約五天。
 
 ---
 
