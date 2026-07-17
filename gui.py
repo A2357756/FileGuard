@@ -70,23 +70,32 @@ def compare(folder, old, new):
             log_event(folder, path, "DELETED")
             delete_file(folder, path)
             if sound_notify_enabled:
-                winsound.Beep(1000, 500)
-                notification.notify(
-                    title="檔案異動警告",
-                    message=f"{path} 被刪除",
-                    timeout=10
-                )
+                try:
+                    winsound.Beep(1000, 500)
+                except Exception as e:
+                    print(f"[警告] 提示音播放失敗: {e}")
+                try:
+                    notification.notify(
+                        title="檔案異動警告",
+                        message=f"{path} 被刪除",
+                        timeout=10
+                    )
+                except Exception as e:
+                    print(f"[警告] 系統通知發送失敗: {e}")
             send_discord_webhook(webhook_url, path, "刪除")
             event_listbox.insert(0, f"[DELETED] {path}")
             events_found = True
         elif old[path] != new[path]:
             log_event(folder, path, "MODIFIED")
             if sound_notify_enabled:
-                notification.notify(
-                    title="檔案異動警告",
-                    message=f"{path} 被修改",
-                    timeout=10
-                )
+                try:
+                    notification.notify(
+                        title="檔案異動警告",
+                        message=f"{path} 被修改",
+                        timeout=10
+                    )
+                except Exception as e:
+                    print(f"[警告] 系統通知發送失敗: {e}")
             send_discord_webhook(webhook_url, path, "修改")
             event_listbox.insert(0, f"[MODIFIED] {path}")
             events_found = True
